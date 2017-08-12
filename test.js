@@ -42,8 +42,10 @@ $('#spend').click(function() {
   tx.addOutput('VxdYNGYzkcuEpW6cjesdJJtNkkYLKS8By7', 49900000);
 
   var txRaw = tx.buildIncomplete();
+  
+  var redeemScript = buffer.Buffer.from("76a9147729097fc7b2f50daa9352429fc8ce8c512b4bd788ac", "hex");
 
-  var signatureHash = txRaw.hashForSignature(0,buffer.Buffer.from("76a9147729097fc7b2f50daa9352429fc8ce8c512b4bd788ac", "hex"),bitcoin.Transaction.SIGHASH_ALL);
+  var signatureHash = txRaw.hashForSignature(0, redeemScript, bitcoin.Transaction.SIGHASH_ALL);
 
   console.log("Hex TX", signatureHash);
 
@@ -52,9 +54,12 @@ $('#spend').click(function() {
   TrezorConnect.signMessage([44 | 0x80000000, 71 | 0x80000000, 0 | 0x80000000,  0 | 0x80000000,  0 | 0x80000000], ui8arrtoascii(signatureHash), function(result) {
     if (result.success) {
       var signature = bitcoin.ECSignature.parseCompact(buffer.Buffer.from(result.signature,'base64'));
-
-      tx.inputs[0].signatures = [signature.signature.toScriptSignature(bitcoin.Transaction.SIGHASH_ALL)];
-      tx.inputs[0].prevOutType = 'pubkey';
+    
+      var scriptSig = bitcoin.script.scriptHash.input.encode([
+        signature.signature.toScriptSignature(bitcoin.Transaction.SIGHASH_ALL),
+        bitcoin.address.fromBase58Check(result.address).hash
+      ], redeemScript);
+      tx.setInputScript(0, scriptSig);
       console.log("Signed TX:",tx.build().toHex());
 
     } else {
